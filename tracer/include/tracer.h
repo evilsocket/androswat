@@ -3,6 +3,7 @@
 
 #include <sys/ptrace.h>
 #include <sys/wait.h>
+#include <stdarg.h>
 
 #include "process.h"
 
@@ -14,7 +15,6 @@ private:
   long trace( int request, void *addr = 0, size_t data = 0 );
   bool attach();
   void detach();
-  bool read( size_t addr, unsigned char *buf, size_t blen );
 
 public:
 
@@ -22,6 +22,11 @@ public:
   virtual ~Tracer();
 
   bool dumpRegion( uintptr_t address, const char *output );
+
+  bool read( size_t addr, unsigned char *buf, size_t blen );
+  bool write( size_t addr, unsigned char *buf, size_t blen);
+  uintptr_t call( uintptr_t function, int nargs, ... );
+
 };
 
 #endif

@@ -3,6 +3,8 @@
 
 #include "tracer.h"
 
+#define CPSR_T_MASK ( 1u << 5 )
+
 long Tracer::trace( int request, void *addr /* = 0 */, size_t data /* = 0 */ ) {
     long ret = ptrace( request, _process->pid(), (caddr_t)addr, (void *)data );
     if( ret == -1 && (errno == EBUSY || errno == EFAULT || errno == ESRCH) ){
@@ -27,7 +29,7 @@ void Tracer::detach() {
   trace( PTRACE_DETACH );
 }
 
-bool Tracer::read( size_t addr, unsigned char *buf, size_t blen ){
+bool Tracer::read( size_t addr, unsigned char *buf, size_t blen ) {
   size_t i = 0;
   long *d, *s, ret;
 
@@ -44,6 +46,81 @@ bool Tracer::read( size_t addr, unsigned char *buf, size_t blen ){
   }
 
   return true;
+}
+
+bool Tracer::write( size_t addr, unsigned char *buf, size_t blen) {
+  size_t i = 0;
+  long ret;
+
+  // make sure the buffer is word aligned
+  char *ptr = (char *)calloc(blen + blen % sizeof(size_t), 1);
+  memcpy(ptr, buf, blen);
+
+  for( i = 0; i < blen; i += sizeof(size_t) ){
+    ret = trace( PTRACE_POKETEXT, (void *)(addr + i), *(size_t *)&ptr[i] );
+    if( ret == -1 ) {
+      ::free(ptr);
+      return false;
+    }
+  }
+
+  ::free(ptr);
+
+  return true;
+}
+
+uintptr_t Tracer::call( uintptr_t function, int nargs, ... ) {
+  int i = 0;
+  struct pt_regs regs = {{0}}, rbackup = {{0}};
+
+  // get registers and backup them
+  trace( PTRACE_GETREGS, 0, (size_t)&regs );
+  memcpy( &rbackup, &regs, sizeof(struct pt_regs) );
+
+  va_list vl;
+  va_start(vl,nargs);
+
+  for( i = 0; i < nargs; ++i ){
+    uintptr_t arg = va_arg( vl, uintptr_t );
+
+    // fill R0-R3 with the first 4 arguments
+    if( i < 4 ){
+      regs.uregs[i] = arg;
+    }
+    // push remaining params onto stack
+    else {
+      regs.ARM_sp -= sizeof(uintptr_t) ;
+      write( (size_t)regs.ARM_sp, (uint8_t *)&arg, sizeof(uintptr_t) );
+    }
+  }
+
+  va_end(vl);
+
+  regs.ARM_lr = 0;
+  regs.ARM_pc = function;
+  // setup the current processor status register
+  if ( regs.ARM_pc & 1 ){
+    /* thumb */
+    regs.ARM_pc   &= (~1u);
+    regs.ARM_cpsr |= CPSR_T_MASK;
+  }
+  else{
+    /* arm */
+    regs.ARM_cpsr &= ~CPSR_T_MASK;
+  }
+
+  // do the call
+  trace( PTRACE_SETREGS, 0, (size_t)&regs );
+  trace( PTRACE_CONT );
+  waitpid( _process->pid(), NULL, WUNTRACED );
+
+  // get registers again, R0 holds the return value
+  trace( PTRACE_GETREGS, 0, (size_t)&regs );
+
+  // restore original registers state
+  trace( PTRACE_SETREGS, 0, (size_t)&rbackup );
+
+  return regs.ARM_r0;
 }
 
 Tracer::Tracer( Process* process ) : _process(process) {
