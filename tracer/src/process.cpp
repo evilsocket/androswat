@@ -96,3 +96,12 @@ void Process::dump() const {
     i->dump();
   }
 }
+
+const MemoryMap *Process::findRegion( uintptr_t address ) {
+  PROCESS_FOREACH_MAP_CONST(this){
+    if( i->contains(address) ){
+      return &(*i);
+    }
+  }
+  return NULL;
+}

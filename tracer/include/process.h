@@ -30,6 +30,8 @@ public:
   Process( pid_t pid );
   void dump() const;
 
+  const MemoryMap *findRegion( uintptr_t address );
+
   static Process *find( const char *name );
 
   inline pid_t pid() const {
