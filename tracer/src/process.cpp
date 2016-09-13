@@ -105,3 +105,35 @@ const MemoryMap *Process::findRegion( uintptr_t address ) {
   }
   return NULL;
 }
+
+uintptr_t Process::findLibrary( const char *name ) {
+  PROCESS_FOREACH_MAP_CONST(this){
+    if( i->name().find(name) != string::npos ){
+      return i->begin();
+    }
+  }
+  return 0;
+}
+
+uintptr_t Process::findSymbol( uintptr_t local ) {
+  // we need an instance for the local process to get the library name
+  // given the symbol address
+  Process local_p(getpid());
+
+  const MemoryMap *local_mem = local_p.findRegion(local);
+  if(!local_mem){
+    fprintf( stderr, "Could not find symbol locally.\n" );
+    return 0;
+  }
+
+  string library_name = local_mem->name();
+  uintptr_t library_handle = findLibrary( library_name.c_str() );
+  if(!library_handle){
+    fprintf( stderr, "Could not find library %s.\n", library_name.c_str() );
+    return 0;
+  }
+
+  // Compute the delta of the local and the remote modules and apply it to
+  // the local address of the symbol ... BOOM, remote symbol address!
+  return local + ( library_handle - local_mem->begin() );
+}

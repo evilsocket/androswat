@@ -31,6 +31,8 @@ public:
   void dump() const;
 
   const MemoryMap *findRegion( uintptr_t address );
+  uintptr_t findLibrary( const char *name );
+  uintptr_t findSymbol( uintptr_t local );
 
   static Process *find( const char *name );
 
