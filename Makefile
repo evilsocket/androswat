@@ -1,4 +1,4 @@
-TARGET    = tracer
+TARGET    = androswat
 MAIN_SRCS = $(wildcard src/*.cpp) $(wildcard src/*/*.cpp)
 MAIN_OBJS = $(MAIN_SRCS:.cpp=.o)
 
@@ -33,9 +33,17 @@ install: all
 	@adb push $(TARGET) /data/local/tmp/
 	@adb shell chmod 777 /data/local/tmp/$(TARGET)
 
+help: install
+	@clear
+	@adb shell su -c /data/local/tmp/$(TARGET) --help
+
 show: install
 	@clear
-	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.android.chrome" --show
+	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.android.calculator2" --show
+
+read: install
+	@clear
+	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.android.calculator2" --read 74f53000 --size 1024
 
 dump: install
 	@clear
