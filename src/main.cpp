@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <getopt.h>
 #include <ctype.h>
+#include <algorithm>
 
 #include "tracer.h"
 
@@ -199,6 +200,8 @@ void action_read( const char *name ) {
     unsigned int step = 16;
 
     while( p < end ) {
+      unsigned int left = end - p;
+      step = std::min( step, left );
       printf( "%08x  |  ", __address );
       for( int i = 0; i < step; ++i ){
         printf( "%02x ", p[i] );
