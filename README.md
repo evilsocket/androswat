@@ -1,7 +1,7 @@
 AndroSwat
 ===
 
-A tool to inspect, dump, modify, search and inject ARM processes memory, still **work in progress**!
+A tool to inspect, dump, modify, search and inject libraries into Android processes, still **work in progress**!
 
 ## Usage
 
