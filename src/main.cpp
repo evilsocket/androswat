@@ -242,8 +242,6 @@ void action_dump( const char *name ) {
   tracer.dumpRegion( __address, __output.c_str() );
 }
 
-#include <dlfcn.h>
-
 void action_inject( const char *name ) {
   Tracer tracer( __process );
 

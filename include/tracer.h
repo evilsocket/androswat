@@ -32,6 +32,7 @@
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 #include <stdarg.h>
+#include <dlfcn.h>
 
 #include "process.h"
 
