@@ -28,40 +28,10 @@ static Process  *__process = NULL;
 static string    __output  = "";
 static uintptr_t __address = -1;
 
-void help( const char *name ){
-  printf( "Usage: %s <options> <action>\n\n", name );
-  printf( "OPTIONS:\n\n" );
-  printf( "  --pid    | -p PID  : Select process by pid.\n" );
-  printf( "  --name   | -n NAME : Select process by name.\n" );
-  printf( "  --output | -o FILE : Set output file.\n" );
-
-  printf( "\nACTIONS:\n\n" );
-  printf( "  --help | -h         : Show help menu.\n" );
-  printf( "  --show | -s         : Show process informations.\n" );
-  printf( "  --dump | -d ADDRESS : Dump memory region containing a specific address, requires -o option.\n" );
-  exit(0);
-}
-
-void check_and_init( const char *name ) {
-  if( getuid() != 0 ){
-    fprintf( stderr, "ERROR: This program must be runned as root.\n\n" );
-    help( name );
-  }
-  else if( __pid != -1 && __name != "" ){
-    fprintf( stderr, "ERROR: --pid and --name options are mutually exclusive.\n\n" );
-    help( name );
-  }
-  else if( __pid != -1 ){
-    __process = new Process( __pid );
-  }
-  else if( __name != "" ){
-    __process = Process::find( __name.c_str() );
-  }
-  else {
-    fprintf( stderr, "ERROR: One of --pid or --name options are required.\n\n" );
-    help( name );
-  }
-}
+void help( const char *name );
+void app_init( const char *name );
+void action_show( const char *name );
+void action_dump( const char *name );
 
 int main( int argc, char **argv )
 {
@@ -107,25 +77,65 @@ int main( int argc, char **argv )
     help( argv[0] );
   }
 
-  check_and_init( argv[0] );
+  app_init( argv[0] );
 
   if( __action == ACTION_SHOW ){
-    __process->dump();
+    action_show( argv[0] );
   }
   else if( __action == ACTION_DUMP ){
-    if( __output == "" ){
-      fprintf( stderr, "ERROR: --dump action require --output option to be set.\n\n" );
-      help( argv[0] );
-    }
-
-    Tracer tracer( __process );
-
-    //tracer.dumpRegion( __address, __output.c_str() );
-    uintptr_t pexit = __process->findSymbol( (uintptr_t)::exit );
-    tracer.call( pexit, 1, 1 );
+    action_dump( argv[0] );
   }
 
   delete __process;
 
   return 0;
+}
+
+void help( const char *name ){
+  printf( "Usage: %s <options> <action>\n\n", name );
+  printf( "OPTIONS:\n\n" );
+  printf( "  --pid    | -p PID  : Select process by pid.\n" );
+  printf( "  --name   | -n NAME : Select process by name.\n" );
+  printf( "  --output | -o FILE : Set output file.\n" );
+
+  printf( "\nACTIONS:\n\n" );
+  printf( "  --help | -h         : Show help menu.\n" );
+  printf( "  --show | -s         : Show process informations.\n" );
+  printf( "  --dump | -d ADDRESS : Dump memory region containing a specific address, requires -o option.\n" );
+  exit(0);
+}
+
+void app_init( const char *name ) {
+  if( getuid() != 0 ){
+    fprintf( stderr, "ERROR: This program must be runned as root.\n\n" );
+    help( name );
+  }
+  else if( __pid != -1 && __name != "" ){
+    fprintf( stderr, "ERROR: --pid and --name options are mutually exclusive.\n\n" );
+    help( name );
+  }
+  else if( __pid != -1 ){
+    __process = new Process( __pid );
+  }
+  else if( __name != "" ){
+    __process = Process::find( __name.c_str() );
+  }
+  else {
+    fprintf( stderr, "ERROR: One of --pid or --name options are required.\n\n" );
+    help( name );
+  }
+}
+
+void action_show( const char *name ) {
+  __process->dump();
+}
+
+void action_dump( const char *name ) {
+  if( __output == "" ){
+    fprintf( stderr, "ERROR: --dump action require --output option to be set.\n\n" );
+    help( name );
+  }
+
+  Tracer tracer( __process );
+  tracer.dumpRegion( __address, __output.c_str() );
 }
