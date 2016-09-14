@@ -60,14 +60,13 @@ void Tracer::detach() {
 
 bool Tracer::read( size_t addr, unsigned char *buf, size_t blen ) {
   size_t i = 0;
-  long *d, *s, ret;
+  long *d, ret;
 
   d = (long*)buf;
-  s = (long*)addr;
   blen /= sizeof(long);
 
-  for( i = 0; i < blen; ++i ) {
-    ret = trace( PTRACE_PEEKDATA, s + i );
+  for( i = 0; i < blen; ++i, addr += sizeof(long) ) {
+    ret = trace( PTRACE_PEEKDATA, (void *)addr );
     if(errno) {
       return false;
     }

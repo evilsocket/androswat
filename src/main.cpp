@@ -199,6 +199,9 @@ void action_read( const char *name ) {
 
   Tracer tracer( __process );
 
+  // align size
+  __size += ( __size % sizeof(long) );
+
   printf( "Reading %lu bytes from %p ( %s ) ...\n\n", __size, __address, mem->name().c_str() );
 
   unsigned char *buffer = new unsigned char[ __size ];
