@@ -35,11 +35,11 @@ install: all
 
 show: install
 	@clear
-	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.pipcamera.activity" --show
+	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.android.chrome" --show
 
 dump: install
 	@clear
-	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.pipcamera.activity" --dump 400e8000 --output /data/local/tmp/test.dump
+	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.android.calculator2" --dump 400e8000 --output /data/local/tmp/test.dump
 
 %.o: %.cpp
 	@$(CXX) $(CXXFLAGS) -c -o $@ $<

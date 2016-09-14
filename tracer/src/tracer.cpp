@@ -5,13 +5,13 @@
 
 #define CPSR_T_MASK ( 1u << 5 )
 
-long Tracer::trace( int request, void *addr /* = 0 */, size_t data /* = 0 */ ) {
-    long ret = ptrace( request, _process->pid(), (caddr_t)addr, (void *)data );
-    if( ret == -1 && (errno == EBUSY || errno == EFAULT || errno == ESRCH) ){
-        // perror("ptrace");
-        return -1;
-    }
-    return ret;
+long Tracer::trace( int request, void *addr /* = 0 */, void *data /* = 0 */ ) {
+  long ret = ptrace( request, _process->pid(), (caddr_t)addr, data );
+  if( ret == -1 && (errno == EBUSY || errno == EFAULT || errno == ESRCH) ){
+    // perror("ptrace");
+    return -1;
+  }
+  return ret;
 }
 
 bool Tracer::attach() {
@@ -21,6 +21,7 @@ bool Tracer::attach() {
     return true;
   }
   else {
+    perror("PTRACE_ATTACH");
     return false;
   }
 }
@@ -57,7 +58,7 @@ bool Tracer::write( size_t addr, unsigned char *buf, size_t blen) {
   memcpy(ptr, buf, blen);
 
   for( i = 0; i < blen; i += sizeof(size_t) ){
-    ret = trace( PTRACE_POKETEXT, (void *)(addr + i), *(size_t *)&ptr[i] );
+    ret = trace( PTRACE_POKETEXT, (void *)(addr + i), (void *)*(size_t *)&ptr[i] );
     if( ret == -1 ) {
       ::free(ptr);
       return false;
@@ -74,7 +75,11 @@ uintptr_t Tracer::call( uintptr_t function, int nargs, ... ) {
   struct pt_regs regs = {{0}}, rbackup = {{0}};
 
   // get registers and backup them
-  trace( PTRACE_GETREGS, 0, (size_t)&regs );
+  if( trace( PTRACE_GETREGS, 0, &regs ) < 0 ){
+    perror("PTRACE_GETREGS 1");
+    return -1;
+  }
+
   memcpy( &rbackup, &regs, sizeof(struct pt_regs) );
 
   va_list vl;
@@ -110,21 +115,39 @@ uintptr_t Tracer::call( uintptr_t function, int nargs, ... ) {
   }
 
   // do the call
-  trace( PTRACE_SETREGS, 0, (size_t)&regs );
-  trace( PTRACE_CONT );
+  if( trace( PTRACE_SETREGS, 0, &regs ) < 0 ){
+    perror("PTRACE_SETREGS");
+    return -1;
+  }
+
+  if( trace( PTRACE_CONT ) < 0 ){
+    perror("PTRACE_CONT");
+    return -1;
+  }
+
   waitpid( _process->pid(), NULL, WUNTRACED );
 
   // get registers again, R0 holds the return value
-  trace( PTRACE_GETREGS, 0, (size_t)&regs );
+  if( trace( PTRACE_GETREGS, 0, &regs ) < 0 ){
+    perror("PTRACE_GETREGS 2");
+    return -1;
+  }
 
   // restore original registers state
-  trace( PTRACE_SETREGS, 0, (size_t)&rbackup );
+  if( trace( PTRACE_SETREGS, 0, &rbackup ) < 0 ){
+    perror("PTRACE_SETREGS");
+    return -1;
+  }
 
   return regs.ARM_r0;
 }
 
 Tracer::Tracer( Process* process ) : _process(process) {
-
+  // attach to process
+  if( attach() == false ){
+    perror("ptrace");
+    FATAL( "Could not attach to process.\n" );
+  }
 }
 
 bool Tracer::dumpRegion( uintptr_t address, const char *output ) {
@@ -135,13 +158,6 @@ bool Tracer::dumpRegion( uintptr_t address, const char *output ) {
     return false;
   }
   printf( "Found 0x%08x in %s\n", address, mem->name().c_str() );
-
-  // attach to process
-  if( attach() == false ){
-    perror("ptrace");
-    fprintf( stderr, "Could not attach to process.\n" );
-    return false;
-  }
 
   bool ok = false;
   size_t toread = mem->size() - ( address - mem->begin() );
@@ -168,7 +184,6 @@ bool Tracer::dumpRegion( uintptr_t address, const char *output ) {
   }
 
   delete[] buffer;
-  detach();
   return ok;
 }
 

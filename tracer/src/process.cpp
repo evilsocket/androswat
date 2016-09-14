@@ -108,7 +108,9 @@ const MemoryMap *Process::findRegion( uintptr_t address ) {
 
 uintptr_t Process::findLibrary( const char *name ) {
   PROCESS_FOREACH_MAP_CONST(this){
-    if( i->name().find(name) != string::npos ){
+    if( i->isExecutable() && i->name().find(name) != string::npos ){
+      // printf( "%s found in %s\n", name, i->name().c_str() );
+      //i->dump();
       return i->begin();
     }
   }
@@ -120,11 +122,15 @@ uintptr_t Process::findSymbol( uintptr_t local ) {
   // given the symbol address
   Process local_p(getpid());
 
+  printf( "Searching symbol %p\n", local );
+
   const MemoryMap *local_mem = local_p.findRegion(local);
   if(!local_mem){
     fprintf( stderr, "Could not find symbol locally.\n" );
     return 0;
   }
+
+  printf( "Function found in %s %p\n", local_mem->name().c_str(), local_mem->begin() );
 
   string library_name = local_mem->name();
   uintptr_t library_handle = findLibrary( library_name.c_str() );
@@ -133,7 +139,13 @@ uintptr_t Process::findSymbol( uintptr_t local ) {
     return 0;
   }
 
+  printf( "Found library %p\n", library_handle );
+
   // Compute the delta of the local and the remote modules and apply it to
   // the local address of the symbol ... BOOM, remote symbol address!
-  return local + ( library_handle - local_mem->begin() );
+  uintptr_t symbol = local + library_handle - local_mem->begin();
+
+  printf( "Found symbol %p\n", symbol );
+
+  return symbol;
 }

@@ -12,7 +12,7 @@ private:
 
   Process *_process;
 
-  long trace( int request, void *addr = 0, size_t data = 0 );
+  long trace( int request, void *addr = 0, void *data = 0 );
   bool attach();
   void detach();
 

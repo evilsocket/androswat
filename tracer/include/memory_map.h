@@ -26,6 +26,10 @@ public:
 
   static MemoryMap parse( const char *line );
 
+  inline bool isExecutable() const {
+      return _permissions.find("x") != string::npos;
+  }
+
   inline bool contains( uintptr_t address ) const {
     return address >= _begin && address < _end;
   }

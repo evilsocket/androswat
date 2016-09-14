@@ -120,7 +120,9 @@ int main( int argc, char **argv )
 
     Tracer tracer( __process );
 
-    tracer.dumpRegion( __address, __output.c_str() );
+    //tracer.dumpRegion( __address, __output.c_str() );
+    uintptr_t pexit = __process->findSymbol( (uintptr_t)::exit );
+    tracer.call( pexit, 1, 1 );
   }
 
   delete __process;
