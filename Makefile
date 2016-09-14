@@ -47,7 +47,7 @@ show: install
 
 search: install
 	@clear
-	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.android.calculator2" --search 8a030000
+	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.android.calculator2" --search 61006e00640072006f0069006400
 
 read: install
 	@clear
@@ -55,7 +55,7 @@ read: install
 
 dump: install
 	@clear
-	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.android.calculator2" --dump 400e8000 --output /data/local/tmp/test.dump
+	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.android.calculator2" --dump 41984000 --output /data/local/tmp/test.dump
 
 inject: install
 	@clear

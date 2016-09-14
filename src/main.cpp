@@ -273,7 +273,7 @@ void action_read( const char *name ) {
   printf( "Reading %lu bytes from %p ( %s ) ...\n\n", __size, __address, mem->name().c_str() );
 
   unsigned char *buffer = new unsigned char[ __size ];
-  if( read( __address, buffer, __size ) ){
+  if( tracer.read( __address, buffer, __size ) ){
     dumphex( buffer, __address, __size );
   }
   else {
@@ -285,21 +285,24 @@ void action_read( const char *name ) {
 }
 
 void action_search( const char *name ) {
-  printf( "Searching for pattern 0x%s ...\n\n", __hex_pattern.c_str() );
-
   size_t pattern_size = __hex_pattern.size() / 2;
+
+  printf( "Searching for pattern :\n\n" );
+  dumphex( __pattern, 0, pattern_size, "  " );
+  printf("\n");
+
   Tracer tracer( __process );
 
   PROCESS_FOREACH_MAP_CONST( __process ){
     // printf( "  Searching in %p-%p ( %s ) ...\n", i->begin(), i->end(), i->name().c_str() );
     unsigned char *buffer = new unsigned char[ i->size() ];
 
-    if( read( i->begin(), buffer, i->size() ) ){
-      size_t end = i->size() - pattern_size;
-      for( size_t off = 0; off < end; off += pattern_size ){
+    if( tracer.read( i->begin(), buffer, i->size() ) ){
+      size_t end_offset = i->size() - pattern_size;
+      for( size_t off = 0; off < end_offset; ++off ){
         if( memcmp( &buffer[off], __pattern, pattern_size ) == 0 ){
           printf( "Match @ offset %lu of %p-%p ( %s ):\n\n", off, i->begin(), i->end(), i->name().c_str() );
-          dumphex( &buffer[off], i->begin() + off, std::min( 32, (int)(end - off) ), "  " );
+          dumphex( &buffer[off], i->begin() + off, std::min( 32, (int)(end_offset - off) ), "  " );
           printf("\n");
         }
       }
