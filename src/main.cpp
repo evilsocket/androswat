@@ -36,6 +36,7 @@
 typedef enum {
   ACTION_HELP = 0,
   ACTION_SHOW,
+  ACTION_SEARCH,
   ACTION_READ,
   ACTION_DUMP,
   ACTION_INJECT
@@ -50,24 +51,32 @@ static struct option options[] = {
 
   { "help",   no_argument,       0, 'H' },
   { "show",   no_argument,       0, 'S' },
+  { "search", required_argument, 0, 'X' },
   { "read",   required_argument, 0, 'R' },
   { "dump",   required_argument, 0, 'D' },
   { "inject", required_argument, 0, 'I' },
   {0,0,0,0}
 };
 
-static pid_t     __pid     = -1;
-static string    __name    = "";
-static action_t  __action  = ACTION_HELP;
-static Process  *__process = NULL;
-static string    __output  = "";
-static uintptr_t __address = -1;
-static size_t    __size    = -1;
-static string    __library = "";
+static pid_t          __pid     = -1;
+static string         __name    = "";
+static action_t       __action  = ACTION_HELP;
+static Process       *__process = NULL;
+static string         __output  = "";
+static uintptr_t      __address = -1;
+static size_t         __size    = -1;
+static string         __library = "";
+static string         __hex_pattern = "";
+static unsigned char *__pattern = NULL;
 
 void help( const char *name );
 void app_init( const char *name );
+
+unsigned char *parsehex( char *hex );
+void dumphex( unsigned char *buffer, size_t base, size_t size, const char *padding = "", size_t step = 16 );
+
 void action_show( const char *name );
+void action_search( const char *name );
 void action_read( const char *name );
 void action_dump( const char *name );
 void action_inject( const char *name );
@@ -76,7 +85,7 @@ int main( int argc, char **argv )
 {
   int c, option_index = 0;
   while (1) {
-    c = getopt_long( argc, argv, "o:p:n:s:HSD:R:I:", options, &option_index );
+    c = getopt_long( argc, argv, "o:p:n:s:HSX:D:R:I:", options, &option_index );
     if( c == -1 ){
       break;
     }
@@ -100,6 +109,15 @@ int main( int argc, char **argv )
 
       case 'S':
         __action = ACTION_SHOW;
+      break;
+
+      case 'X':
+        __action  = ACTION_SEARCH;
+        __hex_pattern = optarg;
+        __pattern = parsehex( optarg );
+        if( !__pattern ){
+          help( argv[0] );
+        }
       break;
 
       case 'R':
@@ -133,13 +151,17 @@ int main( int argc, char **argv )
   app_init( argv[0] );
 
   switch(__action) {
-      case ACTION_SHOW:   action_show( argv[0] ); break;
-      case ACTION_READ:   action_read( argv[0] ); break;
-      case ACTION_DUMP:   action_dump( argv[0] ); break;
-      case ACTION_INJECT: action_inject( argv[0] ); break;
+    case ACTION_SHOW:   action_show( argv[0] ); break;
+    case ACTION_READ:   action_read( argv[0] ); break;
+    case ACTION_SEARCH: action_search( argv[0] ); break;
+    case ACTION_DUMP:   action_dump( argv[0] ); break;
+    case ACTION_INJECT: action_inject( argv[0] ); break;
   }
 
   delete __process;
+  if( __pattern != NULL ){
+    delete[] __pattern;
+  }
 
   return 0;
 }
@@ -155,6 +177,7 @@ void help( const char *name ){
   printf( "\nACTIONS:\n\n" );
   printf( "  --help   | -H         : Show help menu.\n" );
   printf( "  --show   | -S         : Show process informations.\n" );
+  printf( "  --search | -X HEX     : Search for the given pattern ( in hex ) in the process address space.\n" );
   printf( "  --read   | -R ADDRESS : Read SIZE bytes from address and prints them, requires -s option.\n" );
   printf( "  --dump   | -D ADDRESS : Dump memory region containing a specific address to a file, requires -o option.\n" );
   printf( "  --inject | -I LIBRARY : Inject the shared LIBRARY into the process.\n" );
@@ -182,6 +205,51 @@ void app_init( const char *name ) {
   }
 }
 
+unsigned char *parsehex( char *hex ) {
+  size_t len = strlen(hex);
+
+  if( len % 2 != 0 ){
+    fprintf( stderr, "ERROR: Invalid hexadecimal pattern.\n\n" );
+    return NULL;
+  }
+
+  unsigned char *dst = new unsigned char[ len / 2 ];
+  int i = 0;
+
+  for( char *p = hex; p < hex + len; p += 2 ) {
+    unsigned int byte = 0;
+    if( sscanf( p, "%2x", &byte ) != 1 ) {
+      fprintf( stderr, "ERROR: Invalid hexadecimal pattern.\n\n" );
+      delete[] dst;
+      return NULL;
+    }
+
+    dst[i++] = byte & 0xff;
+  }
+  return dst;
+}
+
+void dumphex( unsigned char *buffer, size_t base, size_t size, const char *padding, size_t step ) {
+  unsigned char *p = &buffer[0], *end = p + size;
+
+  while( p < end ) {
+    unsigned int left = end - p;
+    step = std::min( step, left );
+    printf( "%s%08X | ", padding, base );
+    for( int i = 0; i < step; ++i ){
+      printf( "%02x ", p[i] );
+    }
+    printf( "| ");
+    for( int i = 0; i < step; ++i ){
+      printf( "%c", isprint(p[i]) ? p[i] : '.' );
+    }
+
+    printf( "\n" );
+    p += step;
+    base += step;
+  }
+}
+
 void action_show( const char *name ) {
   __process->dump();
 }
@@ -200,32 +268,13 @@ void action_read( const char *name ) {
   Tracer tracer( __process );
 
   // align size
-  __size += ( __size % sizeof(long) );
+  __size = ( __size % sizeof(long) ? __size + (sizeof(long) - __size % sizeof(long)) : __size );
 
   printf( "Reading %lu bytes from %p ( %s ) ...\n\n", __size, __address, mem->name().c_str() );
 
   unsigned char *buffer = new unsigned char[ __size ];
   if( read( __address, buffer, __size ) ){
-    unsigned char *p = &buffer[0], *end = p + __size;
-    unsigned int step = 16;
-
-    while( p < end ) {
-      unsigned int left = end - p;
-      step = std::min( step, left );
-      printf( "%08x  |  ", __address );
-      for( int i = 0; i < step; ++i ){
-        printf( "%02x ", p[i] );
-      }
-      printf( " |  ");
-      for( int i = 0; i < step; ++i ){
-        printf( "%c", isprint(p[i]) ? p[i] : '.' );
-      }
-
-      printf( "\n" );
-      p += step;
-      __address += step;
-    }
-
+    dumphex( buffer, __address, __size );
   }
   else {
     perror("ptrace");
@@ -233,6 +282,34 @@ void action_read( const char *name ) {
   }
 
   delete[] buffer;
+}
+
+void action_search( const char *name ) {
+  printf( "Searching for pattern 0x%s ...\n", __hex_pattern.c_str() );
+
+  size_t pattern_size = __hex_pattern.size() / 2;
+  Tracer tracer( __process );
+
+  PROCESS_FOREACH_MAP_CONST( __process ){
+    // printf( "  Searching in %p-%p ( %s ) ...\n", i->begin(), i->end(), i->name().c_str() );
+    unsigned char *buffer = new unsigned char[ i->size() ];
+
+    if( read( i->begin(), buffer, i->size() ) ){
+      size_t end = i->size() - pattern_size;
+      for( size_t off = 0; off < end; off += pattern_size ){
+        if( memcmp( &buffer[off], __pattern, pattern_size ) == 0 ){
+          printf( "Match @ offset %lu of %p-%p ( %s ):\n\n", off, i->begin(), i->end(), i->name().c_str() );
+          dumphex( &buffer[off], i->begin() + off, std::min( 32, (int)(end - off) ), "  " );
+          printf("\n");
+        }
+      }
+    }
+    else {
+      printf( "  Could not read %p-%p ( %s ).\n", i->begin(), i->end(), i->name().c_str() );
+    }
+
+    delete[] buffer;
+  }
 }
 
 void action_dump( const char *name ) {

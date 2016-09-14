@@ -18,6 +18,7 @@ A tool to inspect, dump, modify, search and inject libraries into Android proces
 
       --help   | -H         : Show help menu.
       --show   | -S         : Show process informations.
+      --search | -X HEX     : Search for the given pattern ( in hex ) in the process address space.
       --read   | -R ADDRESS : Read SIZE bytes from address and prints them, requires -s option.
       --dump   | -D ADDRESS : Dump memory region containing a specific address to a file, requires -o option.
       --inject | -I LIBRARY : Inject the shared LIBRARY into the process.

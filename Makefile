@@ -45,6 +45,10 @@ show: install
 	@clear
 	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.android.calculator2" --show
 
+search: install
+	@clear
+	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.android.calculator2" --search 8a030000
+
 read: install
 	@clear
 	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.android.calculator2" --read 74f53000 --size 1024
