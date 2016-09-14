@@ -285,7 +285,7 @@ void action_read( const char *name ) {
 }
 
 void action_search( const char *name ) {
-  printf( "Searching for pattern 0x%s ...\n", __hex_pattern.c_str() );
+  printf( "Searching for pattern 0x%s ...\n\n", __hex_pattern.c_str() );
 
   size_t pattern_size = __hex_pattern.size() / 2;
   Tracer tracer( __process );
