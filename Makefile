@@ -23,14 +23,18 @@ endif
 
 PREFIX   = arm-linux-androideabi-
 CXX		 = $(PREFIX)g++
-CXXFLAGS = -I. -Iinclude -I$(STLPORT_INC) -L$(STLPORT_LIBS) -fPIC -fPIE -pie --sysroot $(SYSROOT)
+CXXFLAGS = -I. -Iinclude -I$(STLPORT_INC) -L$(STLPORT_LIBS) -fpic -fPIE -pie --sysroot $(SYSROOT)
 LDFLAGS  = -llog -lstlport_static
 
 all: $(MAIN_OBJS)
 	@$(CXX) $(CXXFLAGS) -o $(TARGET) $(MAIN_OBJS) $(LDFLAGS)
 
-install: all
+testlib:
+	@$(CXX) $(CXXFLAGS) -shared -llog -o testlib.so tests/testlib.c
+
+install: all testlib
 	@adb push $(TARGET) /data/local/tmp/
+	@adb push testlib.so /data/local/tmp/
 	@adb shell chmod 777 /data/local/tmp/$(TARGET)
 
 help: install
@@ -49,8 +53,14 @@ dump: install
 	@clear
 	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.android.calculator2" --dump 400e8000 --output /data/local/tmp/test.dump
 
+inject: install
+	@clear
+	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.android.calculator2" --inject /data/local/tmp/testlib.so
+
 %.o: %.cpp
 	@$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 clean:
 	@rm -f src/*.o $(TARGET)
+	@rm -f *.o
+	@rm -f *.so

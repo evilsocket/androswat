@@ -35,10 +35,28 @@
 
 #include "process.h"
 
+typedef struct _Symbols {
+  uintptr_t _dlopen;
+  uintptr_t _dlsym;
+  uintptr_t _dlerror;
+  uintptr_t _calloc;
+  uintptr_t _free;
+
+  _Symbols() : _dlopen(0), _dlsym(0), _dlerror(0), _calloc(0), _free(0) {
+
+  }
+
+  inline bool valid() const {
+    return ( _dlopen && _dlsym && _dlerror && _calloc && _free );
+  }
+}
+Symbols;
+
 class Tracer {
 private:
 
   Process *_process;
+  Symbols  _symbols;
 
   long trace( int request, void *addr = 0, void *data = 0 );
   bool attach();
@@ -51,8 +69,11 @@ public:
 
   bool dumpRegion( uintptr_t address, const char *output );
 
+  const Symbols *getSymbols();
+
   bool read( size_t addr, unsigned char *buf, size_t blen );
   bool write( size_t addr, unsigned char *buf, size_t blen);
+  uintptr_t writeString( const char *s );
   uintptr_t call( uintptr_t function, int nargs, ... );
 
 };

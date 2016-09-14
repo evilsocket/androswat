@@ -28,6 +28,7 @@
  */
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <dlfcn.h>
 
 #include "tracer.h"
 
@@ -176,6 +177,32 @@ Tracer::Tracer( Process* process ) : _process(process) {
     perror("ptrace");
     FATAL( "Could not attach to process.\n" );
   }
+}
+
+const Symbols *Tracer::getSymbols() {
+  if( _symbols.valid() == false ){
+    _symbols._dlopen  = _process->findSymbol((uintptr_t)::dlopen);
+    _symbols._dlsym   = _process->findSymbol((uintptr_t)::dlsym);
+    _symbols._dlerror = _process->findSymbol((uintptr_t)::dlerror);
+    _symbols._calloc  = _process->findSymbol((uintptr_t)::calloc);
+    _symbols._free    = _process->findSymbol((uintptr_t)::free);
+
+    if( _symbols.valid() == false ){
+      FATAL( "Could not resolve process symbols.\n" );
+    }
+  }
+
+  return &_symbols;
+}
+
+uintptr_t Tracer::writeString( const char *s ) {
+  getSymbols();
+
+  uintptr_t mem = call( _symbols._calloc, 2, strlen(s) + 1, 1 );
+
+  write( mem, (unsigned char *)s, strlen(s) + 1 );
+
+  return mem;
 }
 
 bool Tracer::dumpRegion( uintptr_t address, const char *output ) {

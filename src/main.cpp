@@ -37,7 +37,8 @@ typedef enum {
   ACTION_HELP = 0,
   ACTION_SHOW,
   ACTION_READ,
-  ACTION_DUMP
+  ACTION_DUMP,
+  ACTION_INJECT
 }
 action_t;
 
@@ -47,10 +48,11 @@ static struct option options[] = {
   { "output", required_argument, 0, 'o' },
   { "size",   required_argument, 0, 's' },
 
-  { "help", no_argument,       0, 'H' },
-  { "show", no_argument,       0, 'S' },
-  { "read", required_argument, 0, 'R' },
-  { "dump", required_argument, 0, 'D' },
+  { "help",   no_argument,       0, 'H' },
+  { "show",   no_argument,       0, 'S' },
+  { "read",   required_argument, 0, 'R' },
+  { "dump",   required_argument, 0, 'D' },
+  { "inject", required_argument, 0, 'I' },
   {0,0,0,0}
 };
 
@@ -61,18 +63,20 @@ static Process  *__process = NULL;
 static string    __output  = "";
 static uintptr_t __address = -1;
 static size_t    __size    = -1;
+static string    __library = "";
 
 void help( const char *name );
 void app_init( const char *name );
 void action_show( const char *name );
 void action_read( const char *name );
 void action_dump( const char *name );
+void action_inject( const char *name );
 
 int main( int argc, char **argv )
 {
   int c, option_index = 0;
   while (1) {
-    c = getopt_long( argc, argv, "o:p:n:s:HSD:R:", options, &option_index );
+    c = getopt_long( argc, argv, "o:p:n:s:HSD:R:I:", options, &option_index );
     if( c == -1 ){
       break;
     }
@@ -108,6 +112,11 @@ int main( int argc, char **argv )
         __address = strtoul( optarg, NULL, 16 );
       break;
 
+      case 'I':
+        __action  = ACTION_INJECT;
+        __library = optarg;
+      break;
+
       case 'H':
         help( argv[0] );
       break;
@@ -123,14 +132,11 @@ int main( int argc, char **argv )
 
   app_init( argv[0] );
 
-  if( __action == ACTION_SHOW ){
-    action_show( argv[0] );
-  }
-  else if( __action == ACTION_READ ){
-    action_read( argv[0] );
-  }
-  else if( __action == ACTION_DUMP ){
-    action_dump( argv[0] );
+  switch(__action) {
+      case ACTION_SHOW:   action_show( argv[0] ); break;
+      case ACTION_READ:   action_read( argv[0] ); break;
+      case ACTION_DUMP:   action_dump( argv[0] ); break;
+      case ACTION_INJECT: action_inject( argv[0] ); break;
   }
 
   delete __process;
@@ -147,10 +153,11 @@ void help( const char *name ){
   printf( "  --output | -o FILE : Set output file.\n" );
 
   printf( "\nACTIONS:\n\n" );
-  printf( "  --help | -H         : Show help menu.\n" );
-  printf( "  --show | -S         : Show process informations.\n" );
-  printf( "  --dump | -D ADDRESS : Dump memory region containing a specific address to a file, requires -o option.\n" );
-  printf( "  --read | -R ADDRESS : Read SIZE bytes from address and prints them, requires -s option.\n" );
+  printf( "  --help   | -H         : Show help menu.\n" );
+  printf( "  --show   | -S         : Show process informations.\n" );
+  printf( "  --read   | -R ADDRESS : Read SIZE bytes from address and prints them, requires -s option.\n" );
+  printf( "  --dump   | -D ADDRESS : Dump memory region containing a specific address to a file, requires -o option.\n" );
+  printf( "  --inject | -I LIBRARY : Inject the shared LIBRARY into the process.\n" );
   exit(0);
 }
 
@@ -233,4 +240,22 @@ void action_dump( const char *name ) {
 
   Tracer tracer( __process );
   tracer.dumpRegion( __address, __output.c_str() );
+}
+
+#include <dlfcn.h>
+
+void action_inject( const char *name ) {
+  Tracer tracer( __process );
+
+  const Symbols *syms = tracer.getSymbols();
+
+  uintptr_t pstr = tracer.writeString( __library.c_str() );
+
+  printf( "Library name string allocated @ %p\n", pstr );
+
+  uintptr_t ret = tracer.call( syms->_dlopen, 2, pstr, 0 );
+
+  printf( "dlopen returned 0x%x\n", ret );
+
+  tracer.call( syms->_free, 1, pstr );
 }
