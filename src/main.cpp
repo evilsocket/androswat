@@ -48,6 +48,7 @@ static struct option options[] = {
   { "name",   required_argument, 0, 'n' },
   { "output", required_argument, 0, 'o' },
   { "size",   required_argument, 0, 's' },
+  { "filter", required_argument, 0, 'f' },
 
   { "help",   no_argument,       0, 'H' },
   { "show",   no_argument,       0, 'S' },
@@ -68,6 +69,7 @@ static size_t         __size    = -1;
 static string         __library = "";
 static string         __hex_pattern = "";
 static unsigned char *__pattern = NULL;
+static string         __filter  = "";
 
 void help( const char *name );
 void app_init( const char *name );
@@ -85,7 +87,7 @@ int main( int argc, char **argv )
 {
   int c, option_index = 0;
   while (1) {
-    c = getopt_long( argc, argv, "o:p:n:s:HSX:D:R:I:", options, &option_index );
+    c = getopt_long( argc, argv, "o:p:n:s:f:HSX:D:R:I:", options, &option_index );
     if( c == -1 ){
       break;
     }
@@ -105,6 +107,10 @@ int main( int argc, char **argv )
 
       case 's':
         __size = strtoul( optarg, NULL, 10 );
+      break;
+
+      case 'f':
+        __filter = optarg;
       break;
 
       case 'S':
@@ -173,11 +179,12 @@ void help( const char *name ){
   printf( "  --name   | -n NAME : Select process by name.\n" );
   printf( "  --size   | -s SIZE : Set size.\n" );
   printf( "  --output | -o FILE : Set output file.\n" );
+  printf( "  --filter | -f EXPR : Specify a filter for the memory region name.\n" );
 
   printf( "\nACTIONS:\n\n" );
   printf( "  --help   | -H         : Show help menu.\n" );
   printf( "  --show   | -S         : Show process informations.\n" );
-  printf( "  --search | -X HEX     : Search for the given pattern ( in hex ) in the process address space.\n" );
+  printf( "  --search | -X HEX     : Search for the given pattern ( in hex ) in the process address space, might be used with --filter option.\n" );
   printf( "  --read   | -R ADDRESS : Read SIZE bytes from address and prints them, requires -s option.\n" );
   printf( "  --dump   | -D ADDRESS : Dump memory region containing a specific address to a file, requires -o option.\n" );
   printf( "  --inject | -I LIBRARY : Inject the shared LIBRARY into the process.\n" );
@@ -185,6 +192,8 @@ void help( const char *name ){
 }
 
 void app_init( const char *name ) {
+  printf( "AndroSwat v1.0\n" );
+
   if( getuid() != 0 ){
     fprintf( stderr, "ERROR: This program must be runned as root.\n\n" );
     help( name );
@@ -203,6 +212,8 @@ void app_init( const char *name ) {
     fprintf( stderr, "ERROR: One of --pid or --name options are required.\n\n" );
     help( name );
   }
+
+  printf( "Process: %s ( pid=%d )\n\n", __process->name().c_str(), __process->pid() );
 }
 
 unsigned char *parsehex( char *hex ) {
@@ -294,15 +305,18 @@ void action_search( const char *name ) {
   Tracer tracer( __process );
 
   PROCESS_FOREACH_MAP_CONST( __process ){
+    if( __filter.size() != 0 && i->name().find(__filter) == string::npos ){
+      continue;
+    }
     // printf( "  Searching in %p-%p ( %s ) ...\n", i->begin(), i->end(), i->name().c_str() );
     unsigned char *buffer = new unsigned char[ i->size() ];
 
     if( tracer.read( i->begin(), buffer, i->size() ) ){
       size_t end_offset = i->size() - pattern_size;
-      for( size_t off = 0; off < end_offset; ++off ){
-        if( memcmp( &buffer[off], __pattern, pattern_size ) == 0 ){
+      for( size_t off = 0; off <= end_offset; ++off ){
+        if( buffer[off] == __pattern[0] && memcmp( &buffer[off], __pattern, pattern_size ) == 0 ){
           printf( "Match @ offset %lu of %p-%p ( %s ):\n\n", off, i->begin(), i->end(), i->name().c_str() );
-          dumphex( &buffer[off], i->begin() + off, std::min( 32, (int)(end_offset - off) ), "  " );
+          dumphex( &buffer[off], i->begin() + off, std::min( 64, (int)(end_offset - off) ), "  " );
           printf("\n");
         }
       }

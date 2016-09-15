@@ -64,6 +64,10 @@ public:
 
   static Process *find( const char *name );
 
+  inline const string& name() const {
+    return _name;
+  }
+  
   inline pid_t pid() const {
     return _pid;
   }

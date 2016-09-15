@@ -23,7 +23,7 @@ endif
 
 PREFIX   = arm-linux-androideabi-
 CXX		 = $(PREFIX)g++
-CXXFLAGS = -I. -Iinclude -I$(STLPORT_INC) -L$(STLPORT_LIBS) -fpic -fPIE -pie --sysroot $(SYSROOT)
+CXXFLAGS = -O2 -I. -Iinclude -I$(STLPORT_INC) -L$(STLPORT_LIBS) -fpic -fPIE -pie --sysroot $(SYSROOT)
 LDFLAGS  = -llog -lstlport_static
 
 all: $(MAIN_OBJS)
@@ -45,9 +45,12 @@ show: install
 	@clear
 	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.android.calculator2" --show
 
+# 61006e00640072006f0069006400 "android" unicode
+# 6800740074007000 "http" unicode
+# 700061007300730077006f0072006400 "password" unicode
 search: install
 	@clear
-	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.android.calculator2" --search 61006e00640072006f0069006400
+	@adb shell su -c /data/local/tmp/$(TARGET) -n "com.android.chrome" --search 61006e00640072006f0069006400 --filter heap
 
 read: install
 	@clear
